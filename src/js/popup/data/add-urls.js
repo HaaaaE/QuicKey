@@ -9,6 +9,7 @@ const FirefoxToolPattern = /\/mozapps\//;
 const TGSIconPath = "chrome-extension://klbibkeccnjlkjkiokjodocebajanakg/img/";
 const DefaultFaviconPath = "img/default-favicon.svg";
 const FaviconURLPrefix = `chrome-extension://${chrome.runtime.id}/_favicon/?pageUrl=`;
+const getFaviconURL = (url) => FaviconURLPrefix + encodeURIComponent(url);
 
 
 export default function addURLs(
@@ -24,7 +25,7 @@ export default function addURLs(
 		item.originalURL = url;
 		item.faviconURL = (IsFirefox && !favIconUrl)
 			? DefaultFaviconPath
-			: FaviconURLPrefix + (unsuspendURL);
+			: getFaviconURL(unsuspendURL);
 	} else {
 		if (url != unsuspendURL) {
 				// add a URL without the Great Suspender preamble that we
@@ -49,7 +50,7 @@ export default function addURLs(
 			? DefaultFaviconPath
 			: (favIconUrl && favIconUrl.indexOf(TGSIconPath) != 0)
 				? favIconUrl
-				: FaviconURLPrefix + (item.unsuspendURL || url);
+				: getFaviconURL(item.unsuspendURL || url);
 	}
 
 		// add a clean displayURL to each tab that we can score against and
@@ -57,6 +58,10 @@ export default function addURLs(
 		// decodeURIComponent happier and remove the protocol.
 	item.displayURL = decode(url.replace(/\+/g, "%20"))
 		.replace(ProtocolPattern, "");
+
+	if (!item.title) {
+		item.title = item.displayURL || item.url || "Untitled";
+	}
 
 		// closed tabs will have recentBoost already set.  this is mostly to
 		// add a default value for bookmarks and history.

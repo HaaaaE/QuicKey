@@ -219,27 +219,40 @@ DEBUG && console.log("--- handleTabActivated: addTab", tabId, "navigatingRecents
 }
 
 
+function queueOpenPopup(
+	focusSearch = false,
+	direction = 1)
+{
+	lastOpenPromise = lastOpenPromise
+		.catch(error => {
+			console.warn("Previous popup open failed", error);
+		})
+		.then(() => openPopupWindow(focusSearch, direction))
+		.catch(error => {
+			console.error("Failed to open popup", error);
+			return popupWindow.close();
+		});
+}
+
 function handleCommand(
 	command)
 {
 	switch (command) {
 		case OpenPopupCommand:
 		case FocusPopupCommand:
-				// call openPopupWindow() in a finally() method so that the promise
-				// chain won't stop if there's an uncaught exception at some point.
+				// Queue openPopupWindow() so that an uncaught exception in one
+				// invocation cannot poison subsequent shortcut presses.
 				// we need to wait for the previous call to openPopupWindow() to
 				// settle before calling it again in case the user is spamming
 				// alt-Q.  without waiting, the second key press would find the
 				// first one hadn't finished opening yet and tell the partially
 				// loaded popup to close and open a new one.  rinse and repeat.
-			lastOpenPromise = lastOpenPromise
-				.finally(() => openPopupWindow(command === FocusPopupCommand));
+			queueOpenPopup(command === FocusPopupCommand);
 			break;
 
 		case OpenPopupUpCommand:
 				// reverse direction: open popup and move selection UP
-			lastOpenPromise = lastOpenPromise
-				.finally(() => openPopupWindow(false, -1));
+			queueOpenPopup(false, -1);
 			break;
 
 		case PreviousTabCommand:
@@ -264,12 +277,62 @@ function sendPopupMessage(
 {
 	try {
 			// default to sending the message to the menu if it's open
-		(ports.menu || ports.popup).postMessage({ message, ...payload });
+		const port = ports.menu || ports.popup;
+
+		if (!port) {
+			return new Error(`No port available for popup message: ${message}`);
+		}
+
+		port.postMessage({ message, ...payload });
 
 		return chrome.runtime.lastError;
 	} catch (error) {
 		return error;
 	}
+}
+
+
+function getPopupProps(
+	focusSearch)
+{
+	return {
+		focusSearch,
+		navigatingRecents,
+		activeTab: {
+			id: activeTab?.id,
+			windowId: activeTab?.windowId,
+			url: activeTab?.url,
+			title: activeTab?.title,
+			index: activeTab?.index
+		}
+	};
+}
+
+
+function createPopupWindow(
+	focusSearch,
+	alignment)
+{
+	return popupWindow.create(
+		activeTab,
+		getPopupProps(focusSearch),
+		alignment || (navigatingRecents ? "right-center" : "center-center")
+	);
+}
+
+
+async function recreatePopupWindow(
+	focusSearch,
+	alignment,
+	error)
+{
+	if (error) {
+		console.warn("Recreating popup after message failure", error);
+	}
+
+	await popupWindow.close(true);
+
+	return createPopupWindow(focusSearch, alignment);
 }
 
 
@@ -296,17 +359,7 @@ async function openPopupWindow(
 			// to focus the search box or navigate recents.
 			// pass activeTab data through props so popup can use it directly
 			// without sending a message back to background
-		return popupWindow.create(
-			activeTab,
-			{ focusSearch, navigatingRecents, activeTab: {
-				id: activeTab?.id,
-				windowId: activeTab?.windowId,
-				url: activeTab?.url,
-				title: activeTab?.title,
-				index: activeTab?.index
-			} },
-			navigatingRecents ? "right-center" : "center-center"
-		);
+		return createPopupWindow(focusSearch);
 	}
 
 	if (!isPopupWindow(currentActiveTab)) {
@@ -314,17 +367,15 @@ async function openPopupWindow(
 
 			// the popup window is open but not focused, so tell it to show
 			// itself centered on the current browser window, and whether to
-			// select the first item.  if there's no activeTab (such as when
-			// the shortcut is pressed and a devtools window is in the
-			// foreground), the popup will appear aligned to the screen.
-			// pass serializable activeTab data so popup can use it directly
-		return sendPopupMessage("showWindow", { focusSearch, activeTab: {
-			id: activeTab?.id,
-			windowId: activeTab?.windowId,
-			url: activeTab?.url,
-			title: activeTab?.title,
-			index: activeTab?.index
-		} });
+			// select the first item.  If the saved port is stale or missing,
+			// recreate the popup instead of treating the dead context as usable.
+		const error = sendPopupMessage("showWindow", getPopupProps(focusSearch));
+
+		if (error) {
+			return recreatePopupWindow(focusSearch, undefined, error);
+		}
+
+		return undefined;
 	}
 
 		// the popup is open and focused, so use the shortcut to move the
@@ -697,6 +748,10 @@ const storagePromise = prefetchedStoragePromise || storage.get()
 	});
 
 	port.onDisconnect.addListener(port => {
+		if (ports[port.name] !== port) {
+			return;
+		}
+
 		ports[port.name] = null;
 		activeTab = null;
 
@@ -837,21 +892,11 @@ DEBUG && console.log(e);
 
 enableCommands();
 
-chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.TAB] })
-	.then((initialViews) => {
-			// check that the popup window is open, and not just the Options tab
-		if (initialViews.some(isPopupWindow)) {
-			const popupPort = chrome.runtime.connect({ name: "popup" });
+// Do not synthesize a popup port here.  A popup.html context can survive
+// service-worker restarts without proving that its runtime Port is still
+// connected or that it can receive showWindow messages.  The next shortcut
+// will recreate a stale popup context if no real popup port is connected.
 
-				// check lastError to suppress "Could not establish connection"
-				// errors when the popup has closed before the connection completes
-			popupPort.onDisconnect.addListener(() => chrome.runtime.lastError);
-
-				// generate a connect event with this new port.  if there's no popup
-				// window for it connect to, it'll immediately close.
-			chrome.runtime.onConnect.dispatch(popupPort);
-		}
-	});
 
 storage.set(data => {
 	if (!data) {
