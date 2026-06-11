@@ -174,6 +174,7 @@ export default class ResultsListItem extends React.Component {
 			onMouseMove={this.handleMouseMove}
 		>
 		<div className="favicon"
+				key={safeFaviconURL}
 				style={faviconStyle}
 			/>
 			<div className="title">

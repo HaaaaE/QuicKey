@@ -18,6 +18,9 @@ export default function addURLs(
 {
 	let {url, favIconUrl} = item;
 	const unsuspendURL = url.replace(SuspendedURLPattern, "$1");
+	const isOpenTab = Number.isInteger(item.id) && Number.isInteger(item.windowId) && !item.sessionId;
+	const canUseFavIconUrl = favIconUrl && favIconUrl.indexOf(TGSIconPath) != 0 &&
+		(!isOpenTab || favIconUrl.startsWith("data:"));
 
 	if (unsuspend) {
 			// force the item to use the unsuspended version of its URL
@@ -46,9 +49,13 @@ export default function addURLs(
 			// available, so default to the chrome:// URL in that case.
 			// in FF, use a fallback icon, as bookmarks and history items
 			// don't show favicons, annoyingly.
+			// Open tabs can briefly report a stale favIconUrl after navigation,
+			// which makes the popup show another tab's icon next to the new
+			// title/URL.  Prefer Chrome's pageUrl favicon lookup for live tabs,
+			// while still preserving embedded data: icons such as suspended tabs.
 		item.faviconURL = (IsFirefox && !favIconUrl)
 			? DefaultFaviconPath
-			: (favIconUrl && favIconUrl.indexOf(TGSIconPath) != 0)
+			: canUseFavIconUrl
 				? favIconUrl
 				: getFaviconURL(item.unsuspendURL || url);
 	}
