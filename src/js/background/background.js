@@ -76,6 +76,7 @@ let lastWindowID;
 let badgeMode = k.ShowTabCount.None;
 let lastActivatedTabId = null;
 let lastActivatedTime = 0;
+let shortcutActivationFlushSuppressions = 0;
 let lastUsedVersion;
 let usePinyin;
 let cachedTabs = null;
@@ -192,6 +193,30 @@ const handleTabRemoved = debounce(
 );
 
 
+function suppressPendingFlushForShortcutActivation()
+{
+	shortcutActivationFlushSuppressions++;
+
+	setTimeout(() => {
+		if (shortcutActivationFlushSuppressions > 0) {
+			shortcutActivationFlushSuppressions--;
+		}
+	}, k.MinTabDwellTime);
+}
+
+
+function shouldFlushPendingActivation()
+{
+	if (shortcutActivationFlushSuppressions > 0) {
+		shortcutActivationFlushSuppressions--;
+
+		return false;
+	}
+
+	return true;
+}
+
+
 function handleTabActivated({
 	tabId})
 {
@@ -208,6 +233,16 @@ function handleTabActivated({
 	if (Number.isInteger(tabId) && tabId !== popupWindow.tabID && !navigatingRecents) {
 		lastActivatedTabId = tabId;
 		lastActivatedTime = Date.now();
+
+			// If the user activates another tab before the previous activation's
+			// dwell timer fires, keep that previous tab in the MRU stack.  This
+			// makes a quick manual A -> B -> A switch remember B as A's previous
+			// tab.  Direct previous/next-tab shortcut activations suppress this
+			// flush below so intermediate shortcut steps still are not recorded.
+		if (shouldFlushPendingActivation()) {
+			addTab.execute();
+		}
+
 DEBUG && console.log("--- handleTabActivated: addTab", tabId, "navigatingRecents:", navigatingRecents);
 		addTab(tabId);
 
@@ -460,6 +495,11 @@ DEBUG && console.log("--- navigateRecents: executing pending addTab before navig
 				// the user is going backwards or is going forwards before
 				// the cooldown ends
 			await toolbarIcon.invertFor(k.MinTabDwellTime);
+
+				// This direct previous/next-tab shortcut path changes the active tab
+				// immediately, unlike popup Ctrl+Tab selection that waits for keyup.
+				// Keep the debounce from flushing intermediate shortcut steps.
+			suppressPendingFlushForShortcutActivation();
 			await recentTabs.navigate(direction, limitToCurrentWindow);
 		}
 

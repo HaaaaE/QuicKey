@@ -18,6 +18,20 @@ function getListWidth()
 
 // row component for react-window v2
 // receives index, style, and all additional props passed via rowProps
+function getItemKey(
+	item,
+	mode,
+	index)
+{
+	return [
+		item.id ?? item.sessionId ?? item.url ?? item.title ?? index,
+		item.windowId ?? item.source ?? mode,
+		item.url ?? "",
+		item.faviconURL ?? ""
+	].join("|");
+}
+
+
 function Row({
 	index,
 	style,
@@ -34,6 +48,7 @@ function Row({
 	const ItemComponent = item.component || itemComponent;
 
 	return <ItemComponent
+		key={getItemKey(item, mode, index)}
 		item={item}
 		index={index}
 		query={query}
