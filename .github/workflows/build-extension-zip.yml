@@ -1,0 +1,54 @@
+name: Build Chrome extension zip
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-extension-zip:
+    name: Build installable Chrome extension zip
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production extension zip
+        run: npm run build
+
+      - name: Locate and verify extension zip
+        id: extension_zip
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          zip_path="$(find release -type f -name 'QuicKey.zip' | sort | tail -n 1)"
+
+          if [[ -z "${zip_path}" ]]; then
+            echo "No QuicKey.zip file was produced under release/." >&2
+            exit 1
+          fi
+
+          unzip -t "${zip_path}"
+          unzip -l "${zip_path}" manifest.json
+
+          echo "zip_path=${zip_path}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload Chrome extension zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: quickey-chrome-extension-${{ github.sha }}
+          path: ${{ steps.extension_zip.outputs.zip_path }}
+          if-no-files-found: error
