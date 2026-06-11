@@ -1532,6 +1532,10 @@ DEBUG && console.log("loadTabs recents (top 5):", this.recents.slice(0, 5).map(
 			// selected after tabs are loaded
 		this.openedForSearch = focusSearch;
 
+			// Bring the popup window forward before reloading tabs/settings so a
+			// slow storage or history read does not look like the shortcut failed.
+		await this.showPopupWindow(activeTab);
+
 			// regardless of whether the first item is selected or not, set
 			// the focus to the searchbox, in case the last time the window
 			// was open the user had clicked somewhere else.  without this,
@@ -1554,8 +1558,7 @@ DEBUG && console.log("loadTabs recents (top 5):", this.recents.slice(0, 5).map(
 
 			// the tab list should already be correct in most cases, but
 			// load them again just to make sure
-		return this.loadTabs()
-			.then(() => this.showPopupWindow(activeTab));
+		return this.loadTabs();
 	}
 
 

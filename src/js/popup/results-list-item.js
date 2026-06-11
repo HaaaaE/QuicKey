@@ -85,8 +85,8 @@ export default class ResultsListItem extends React.Component {
 			isSelected
 		} = this.props;
 		const {
-			scores,
-			hitMasks,
+			scores = {},
+			hitMasks = {},
 			title,
 			titleIndex,
 			groupTitle,
@@ -100,6 +100,9 @@ export default class ResultsListItem extends React.Component {
 			otherWindow,
 			incognito
 		} = item;
+		const safeDisplayURL = displayURL || item.url || "";
+		const safeTitle = title || safeDisplayURL || "Untitled";
+		const safeFaviconURL = faviconURL || "img/default-favicon.svg";
 		const isOpenTab = !sessionId && !item.source && (mode === "tabs" || mode === "openTabs");
 		const className = [
 			"results-list-item",
@@ -112,11 +115,11 @@ export default class ResultsListItem extends React.Component {
 			!isOpenTab ? "not-open" : ""
 		].join(" ");
 		const faviconStyle = {
-			backgroundImage: `url(${faviconURL})`
+			backgroundImage: `url(${safeFaviconURL})`
 		};
 		let tooltip = [
-			title.length > MaxTitleLength ? title : "",
-			displayURL.length > MaxURLLength ? displayURL : ""
+			safeTitle.length > MaxTitleLength ? safeTitle : "",
+			safeDisplayURL.length > MaxURLLength ? safeDisplayURL : ""
 		].join("\n");
 		let badge = null;
 		let badgeTooltip = "";
@@ -130,7 +133,7 @@ export default class ResultsListItem extends React.Component {
 					item.lastVisit ? ["lastVisit", getRelativeTime(item.lastVisit)] : [],
 				])
 				.map(keyValue => keyValue.join(": "))
-				.concat([title != pinyinTitle && pinyinTitle, displayURL != pinyinDisplayURL && pinyinDisplayURL])
+				.concat([safeTitle != pinyinTitle && pinyinTitle, safeDisplayURL != pinyinDisplayURL && pinyinDisplayURL])
 				.filter(string => string)
 				.join("\n") + "\n" + tooltip;
 		}
@@ -139,7 +142,7 @@ export default class ResultsListItem extends React.Component {
 			// so trim them
 		tooltip = tooltip.trim();
 
-		if (unsuspendURL && faviconURL.indexOf(FaviconURL) == 0 && !sessionId) {
+		if (unsuspendURL && safeFaviconURL.indexOf(FaviconURL) == 0 && !sessionId) {
 				// this is a suspended tab, but The Great Suspender has
 				// forgotten the faded favicon for it or has set its own
 				// icon for some reason.  so we get the favicon through
@@ -193,7 +196,7 @@ export default class ResultsListItem extends React.Component {
 				<span className="title-text">
 					<MatchedString
 						query={query}
-						text={title}
+						text={safeTitle}
 						score={scores.title}
 						hitMask={hitMasks.title}
 					/>
@@ -202,7 +205,7 @@ export default class ResultsListItem extends React.Component {
 			<div className="url">
 				<MatchedString
 					query={query}
-					text={displayURL}
+					text={safeDisplayURL}
 					score={scores.displayURL}
 					hitMask={hitMasks.displayURL}
 				/>
