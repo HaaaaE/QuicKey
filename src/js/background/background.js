@@ -94,6 +94,26 @@ function invalidateTabCache()
 }
 
 
+	// get the URL from either a tab object or what's returned from getContexts()
+const isPopupWindow = (tab) => (tab?.url || tab?.documentUrl)?.startsWith(k.PopupURL);
+
+
+function isPopupTab(
+	tab)
+{
+	return isPopupWindow(tab)
+		|| tab?.id === popupWindow.tabID
+		|| tab?.windowId === popupWindow.id;
+}
+
+
+function filterPopupTabs(
+	tabs = [])
+{
+	return tabs.filter(tab => !isPopupTab(tab));
+}
+
+
 function refreshTabCache()
 {
 	const now = Date.now();
@@ -103,13 +123,10 @@ function refreshTabCache()
 	}
 
 	tabCacheTime = now;
-	cachedTabs = chrome.tabs.query({});
+	cachedTabs = chrome.tabs.query({})
+		.then(filterPopupTabs);
 	cachedSessions = chrome.sessions.getRecentlyClosed();
 }
-
-
-	// get the URL from either a tab object or what's returned from getContexts()
-const isPopupWindow = (tab) => (tab?.url || tab?.documentUrl)?.startsWith(k.PopupURL);
 
 
 chrome.runtime.onStartup.addListener(() => {
@@ -149,7 +166,7 @@ const addTab = debounce(
 				// only if it's not the popup window.  though handleTabActivated()
 				// checks popupWindow.id, that may be 0 right after it's been
 				// created and triggers the tab activated event.
-			if (!isPopupWindow(tab)) {
+			if (!isPopupTab(tab)) {
 				activeTab = tab;
 
 				return recentTabs.add(tab);
@@ -605,7 +622,7 @@ chrome.tabs.onCreated.addListener(tab => {
 	toolbarIcon.updateTabCount(1);
 	invalidateTabCache();
 
-	if (!startingUp && !tab.active && !isPopupWindow(tab)) {
+	if (!startingUp && !tab.active && !isPopupTab(tab)) {
 			// this tab was opened by ctrl-clicking a link or by opening
 			// all the tabs in a bookmark folder, so pass true to insert
 			// this tab in the penultimate position, which makes it the
@@ -707,7 +724,8 @@ chrome.runtime.onConnect.addListener(port => {
 	if (port.name === "popup" || port.name === "menu") {
 			// push prefetched data (tabs, sessions, storage) to popup so it
 			// doesn't have to make separate IPC calls for each one
-		const tabsPromise = cachedTabs || chrome.tabs.query({});
+		const tabsPromise = cachedTabs || chrome.tabs.query({})
+			.then(filterPopupTabs);
 		const sessionsPromise = cachedSessions || chrome.sessions.getRecentlyClosed();
 const storagePromise = prefetchedStoragePromise || storage.get()
 			.catch(() => null);

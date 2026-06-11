@@ -1,5 +1,5 @@
 import storage from "@/background/quickey-storage";
-import {HidePopupBehavior, IsFirefox, PopupInnerHeight, PopupInnerWidth, PopupURL} from "@/background/constants";
+import {HidePopupBehavior, IsFirefox, PopupInnerHeight, PopupInnerWidth, PopupMaxWidth, PopupURL} from "@/background/constants";
 import {calcBounds} from "@/background/popup-utils";
 import {popupEmitter} from "@/background/popup-emitter";
 import {connect} from "@/lib/ipc";
@@ -18,10 +18,26 @@ let hideBehavior = Behind;
 let { windowID, tabID } = await getExistingPopupID();
 let lastActiveTab;
 
+function clampPopupWidth(
+	width = PopupInnerWidth)
+{
+	return Math.min(width || PopupInnerWidth, PopupMaxWidth);
+}
+
+
+function normalizeBounds(
+	bounds)
+{
+	return {
+		...bounds,
+		width: clampPopupWidth(bounds.width),
+	};
+}
+
 
 await storage.get((data = {}) => {
 	({ popupAdjustmentHeight = 0 } = data);
-	currentWidth = PopupInnerWidth;
+	currentWidth = clampPopupWidth(PopupInnerWidth);
 	currentHeight = PopupInnerHeight + popupAdjustmentHeight;
 });
 
@@ -124,14 +140,14 @@ async function create(
 		// we won't have an activeTab if the user is opening the popup with
 		// a devtools window in the foreground
 	const targetWindow = await getWindow(activeTab);
-	const bounds = calcBounds(
+	const bounds = normalizeBounds(calcBounds(
 		props.navigatingRecents ? null : targetWindow,
 		{
 			alignment,
 			width: currentWidth,
 			height: currentHeight,
 		}
-	);
+	));
 	let window;
 
 	if (hideBehavior !== Tab) {
@@ -193,14 +209,14 @@ async function show(
 	alignment)
 {
 	const targetWindow = await getWindow(activeTab);
-	const bounds = calcBounds(
+	const bounds = normalizeBounds(calcBounds(
 		targetWindow,
 		{
 			alignment,
 			width: currentWidth,
 			height: currentHeight,
 		}
-	);
+	));
 	let window;
 
 	try {
@@ -288,13 +304,13 @@ async function hide(
 				// the adjustment deltas so calcPosition() calculates the position
 				// based on the correct size, which may shift slightly on screens
 				// with different DPIs.
-			const bounds = calcBounds(
+			const bounds = normalizeBounds(calcBounds(
 				targetWindow,
 				{
 					width: currentWidth,
 					height: currentHeight,
 				}
-			);
+			));
 
 			Object.assign(options, bounds);
 
@@ -364,11 +380,11 @@ async function resize(
 		return;
 	}
 
-	currentWidth = width;
+	currentWidth = clampPopupWidth(width);
 	currentHeight = height;
 
 	try {
-		await chrome.windows.update(windowID, { width, height });
+		await chrome.windows.update(windowID, { width: currentWidth, height });
 	} catch (e) {}
 }
 

@@ -149,7 +149,7 @@ function add(
 	penultimately)
 {
 		// ignore the extension's own popups
-	if (!tab || tab.url.includes(PopupURL)) {
+	if (!tab || tab.url?.startsWith(PopupURL)) {
 		return Promise.resolve();
 	}
 
@@ -302,8 +302,7 @@ const t = performance.now();
 				const {tabsByID} = data;
 DEBUG && console.log("getAll processor: tabIDs (last 5):", tabIDs.slice(-5),
 	"lastVisits:", tabIDs.slice(-5).map(id => `${id}:${tabsByID[id]?.lastVisit}`));
-// TODO: should use startsWith
-				let tabs = freshTabs.filter(({url}) => !url.includes(PopupURL));
+				let tabs = freshTabs.filter(({url}) => !url?.startsWith(PopupURL));
 
 					// update the fresh tabs with any recent data we have
 				tabs = tabs.map(tab => {
@@ -356,7 +355,7 @@ DEBUG && console.log("getAll processor: tabIDs (last 5):", tabIDs.slice(-5),
 						const lastVisit = session.lastModified * 1000;
 
 						[].concat(session.tab || session.window.tabs).forEach(tab => {
-							if (!(tab.url in tabsByURL) && !tab.url.includes(PopupURL)) {
+							if (!(tab.url in tabsByURL) && !tab.url?.startsWith(PopupURL)) {
 								tabsByURL[tab.url] = true;
 								tab.lastVisit = lastVisit;
 								addURLs(tab);
