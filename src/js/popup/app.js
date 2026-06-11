@@ -200,6 +200,9 @@ export default class App extends React.Component {
 		this.className = this.props.platform + (k.IsFirefox ? " firefox" : "");
 
 		if (props.isPopup) {
+			chrome.tabs.getCurrent()
+				.then((tab) => this.popupTabID = tab?.id ?? -1);
+
 				// in showWindow() we set gotMRUKey based on whether the popup
 				// is being opened for search as well, but showWindow() isn't
 				// called in the flow when the popup is opened the first time.
@@ -213,14 +216,8 @@ export default class App extends React.Component {
 				// to avoid a cross-process message round-trip in getActiveTab()
 			if (props.activeTab && props.activeTab.id) {
 				this.cachedActiveTab = props.activeTab;
-				this.popupTabID = -1;
 			}
 
-			if (!this.cachedActiveTab) {
-					// fallback: query for activeTab if not provided in props
-				this.getActiveTab(true)
-					.then((activeTab) => this.popupTabID = activeTab?.id);
-			}
 
 				// create a messaging channel API for the popupWindow object in
 				// the background script.  we only need this in the popup state.

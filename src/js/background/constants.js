@@ -30,6 +30,8 @@ export const Homepage = "https://fwextensions.github.io/QuicKey/";
 export const MinTabDwellTime = 1250;
 export const PopupURL = chrome.runtime.getURL("popup.html");
 export const PopupInnerWidth = 500;
+// Keep accidental OS/window-manager maximization from being persisted as the popup width.
+export const PopupMaxWidth = PopupInnerWidth;
 export const PopupInnerHeight = 488;
 export const PopupPadding = 50;
 export const ResultsListRowHeight = 48;
