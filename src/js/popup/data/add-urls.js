@@ -8,8 +8,15 @@ const ProtocolPattern = /^((chrome-extension:\/\/[^/]+\/suspended\.html#(?:.*&)?
 const FirefoxToolPattern = /\/mozapps\//;
 const TGSIconPath = "chrome-extension://klbibkeccnjlkjkiokjodocebajanakg/img/";
 const DefaultFaviconPath = "img/default-favicon.svg";
-const FaviconURLPrefix = `chrome-extension://${chrome.runtime.id}/_favicon/?pageUrl=`;
-const getFaviconURL = (url) => FaviconURLPrefix + encodeURIComponent(url);
+const FaviconSize = "32";
+const getFaviconURL = (url) => {
+	const faviconURL = new URL(chrome.runtime.getURL("/_favicon/"));
+
+	faviconURL.searchParams.set("pageUrl", url);
+	faviconURL.searchParams.set("size", FaviconSize);
+
+	return faviconURL.toString();
+};
 
 
 export default function addURLs(
