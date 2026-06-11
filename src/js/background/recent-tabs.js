@@ -269,6 +269,15 @@ DEBUG && console.log("tab replaced", oldID, "index", index, getRecentStackString
 }
 
 
+function isPopupTab(
+	tab,
+	popupTabID)
+{
+	return tab.id === popupTabID
+		|| (tab.url || tab.pendingUrl || "").startsWith(PopupURL);
+}
+
+
 function getAll(
 	includeClosedTabs,
 	cachedTabData)
@@ -302,8 +311,8 @@ const t = performance.now();
 				const {tabsByID} = data;
 DEBUG && console.log("getAll processor: tabIDs (last 5):", tabIDs.slice(-5),
 	"lastVisits:", tabIDs.slice(-5).map(id => `${id}:${tabsByID[id]?.lastVisit}`));
-// TODO: should use startsWith
-				let tabs = freshTabs.filter(({url}) => !url.includes(PopupURL));
+				const {popupTabID} = cachedTabData || {};
+				let tabs = freshTabs.filter(tab => !isPopupTab(tab, popupTabID));
 
 					// update the fresh tabs with any recent data we have
 				tabs = tabs.map(tab => {
